@@ -1,0 +1,1 @@
+Have to set: $env:SC2PATH = "C:\Program Files (x86)\StarCraft II\"   

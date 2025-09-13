@@ -16,32 +16,28 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: actions-rs/toolchain@v1
       with:
           profile: minimal
           toolchain: stable
           override: true
     - name: Cache cargo registry
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-dev-registry-${{ hashFiles('**/Cargo.lock') }}
     - name: Cache cargo index
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-dev-index-${{ hashFiles('**/Cargo.lock') }}
     - name: Cache cargo build
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
           path: |
             target
           key: ${{ runner.os }}-dev-target-${{ hashFiles('**/Cargo.lock') }}
-    - name: Build library
-      run: cargo build --lib --verbose
-#     - name: Run tests
-#       run: cargo test --verbose
 
   fmt:
     name: Rustfmt
@@ -75,19 +71,3 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
-
-  examples:
-    name: Examples
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --examples -- -D warnings

@@ -10,8 +10,8 @@ license = "MIT"
 
 [dependencies]
 #sc2-proto = "0.2.3"
-sc2-proto = { path = "sc2-proto-rs" }
-sc2-macro = { path = "sc2-macro", version = "1" }
+sc2-proto = { path = "../sc2-proto-rs" }
+sc2-macro = { path = "../sc2-macro", version = "1" }
 tungstenite = { version = "0.27.0", default-features = false, features = [
     "handshake",
 ] }

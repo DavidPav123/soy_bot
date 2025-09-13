@@ -68,3 +68,4 @@ jobs:
       - name: Run clippy for `soy_bot` crate manifest
         run: |
           cargo clippy --manifest-path ./soy_bot/Cargo.toml -- -D warnings
+        working-directory: ${{ github.workspace }}

@@ -448,11 +448,11 @@ impl Unit {
     }
     /// Checks if it's mineral field.
     pub fn is_mineral(&self) -> bool {
-        self.type_data().map_or(false, |data| data.has_minerals)
+        self.type_data().is_some_and(|data| data.has_minerals)
     }
     /// Checks if it's vespene geyser.
     pub fn is_geyser(&self) -> bool {
-        self.type_data().map_or(false, |data| data.has_vespene)
+        self.type_data().is_some_and(|data| data.has_vespene)
     }
     /// Checks if unit is detector.
     #[rustfmt::skip::macros(matches)]
@@ -486,13 +486,13 @@ impl Unit {
     pub fn has_techlab(&self) -> bool {
         let techlab_tags = self.data.techlab_tags.read_lock();
         self.addon_tag()
-            .map_or(false, |tag| techlab_tags.contains(&tag))
+            .is_some_and(|tag| techlab_tags.contains(&tag))
     }
     /// Terran building's addon is reactor if any.
     pub fn has_reactor(&self) -> bool {
         let reactor_tags = self.data.reactor_tags.read_lock();
         self.addon_tag()
-            .map_or(false, |tag| reactor_tags.contains(&tag))
+            .is_some_and(|tag| reactor_tags.contains(&tag))
     }
     /// Unit was attacked on last step.
     pub fn is_attacked(&self) -> bool {
@@ -542,7 +542,7 @@ impl Unit {
             .abilities_units
             .read_lock()
             .get(&self.tag())
-            .map_or(false, |abilities| abilities.contains(&ability))
+            .is_some_and(|abilities| abilities.contains(&ability))
     }
     /// Race of unit, dependent on it's type.
     pub fn race(&self) -> Race {
@@ -550,7 +550,7 @@ impl Unit {
     }
     /// There're some units inside transport or bunker.
     pub fn has_cargo(&self) -> bool {
-        self.cargo_space_taken().map_or(false, |taken| taken > 0)
+        self.cargo_space_taken().is_some_and(|taken| taken > 0)
     }
     /// Free space left in transport or bunker.
     pub fn cargo_left(&self) -> Option<u32> {
@@ -786,7 +786,7 @@ impl Unit {
     /// Checks if unit has given attribute.
     pub fn has_attribute(&self, attribute: Attribute) -> bool {
         self.type_data()
-            .map_or(false, |data| data.attributes.contains(&attribute))
+            .is_some_and(|data| data.attributes.contains(&attribute))
     }
     /// Checks if unit has `Light` attribute.
     pub fn is_light(&self) -> bool {
@@ -976,7 +976,7 @@ impl Unit {
     /// Checks if unit's weapon is on cooldown.
     pub fn on_cooldown(&self) -> bool {
         self.weapon_cooldown()
-            .map_or(false, |cool| cool > f32::EPSILON)
+            .is_some_and(|cool| cool > f32::EPSILON)
     }
     /// Returns max cooldown in frames for unit's weapon.
     pub fn max_cooldown(&self) -> Option<f32> {
@@ -1661,7 +1661,7 @@ impl Unit {
     /// Doesn't work with enemies.
     pub fn is_using_any<A: Container<AbilityId>>(&self, abilities: &A) -> bool {
         self.ordered_ability()
-            .map_or(false, |a| abilities.contains(&a))
+            .is_some_and(|a| abilities.contains(&a))
     }
     /// Checks if unit is currently attacking.
     ///
@@ -1725,7 +1725,7 @@ impl Unit {
     pub fn is_collecting(&self) -> bool {
         self.orders()
             .first()
-            .map_or(false, |order| match self.type_id() {
+            .is_some_and(|order| match self.type_id() {
                 UnitTypeId::SCV => matches!(
                     order.ability,
                     AbilityId::HarvestGatherSCV | AbilityId::HarvestReturnSCV
@@ -1751,7 +1751,7 @@ impl Unit {
     pub fn is_constructing(&self) -> bool {
         self.orders()
             .first()
-            .map_or(false, |order| match self.type_id() {
+            .is_some_and(|order| match self.type_id() {
                 UnitTypeId::SCV => order.ability.is_constructing_scv(),
                 UnitTypeId::Drone => order.ability.is_constructing_drone(),
                 UnitTypeId::Probe => order.ability.is_constructing_probe(),
@@ -1764,7 +1764,7 @@ impl Unit {
     pub fn is_making_addon(&self) -> bool {
         self.orders()
             .first()
-            .map_or(false, |order| match self.type_id() {
+            .is_some_and(|order| match self.type_id() {
                 UnitTypeId::Barracks => matches!(
                     order.ability,
                     AbilityId::BuildTechLabBarracks | AbilityId::BuildReactorBarracks
@@ -1812,7 +1812,7 @@ impl Unit {
             .available_frames
             .read_lock()
             .get(&self.tag())
-            .map_or(false, |frame| self.data.game_loop.get_locked() < *frame)
+            .is_some_and(|frame| self.data.game_loop.get_locked() < *frame)
     }
     /// Makes unit ignore all your commands for given amount of frames.
     ///
@@ -2007,7 +2007,7 @@ impl Unit {
                     DisplayType::Visible => {
                         if visibility
                             .get(<(usize, usize)>::from(position))
-                            .map_or(false, |p| p.is_visible())
+                            .is_some_and(|p| p.is_visible())
                         {
                             DisplayType::Visible
                         } else {

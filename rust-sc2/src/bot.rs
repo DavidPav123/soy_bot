@@ -692,7 +692,7 @@ impl Bot {
         self.orders
             .get(&ability)
             .copied()
-            .map_or(false, |count| count > 0)
+            .is_some_and(|count| count > 0)
     }
     /// Returns progress of making given upgrade.
     /// - `1` - complete
@@ -752,14 +752,14 @@ impl Bot {
         self.game_info
             .placement_grid
             .get(pos.into())
-            .map_or(false, |p| p.is_empty())
+            .is_some_and(|p| p.is_empty())
     }
     /// Checks if it's possible for ground units to walk through given position.
     pub fn is_pathable<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
         self.game_info
             .pathing_grid
             .get(pos.into())
-            .map_or(false, |p| p.is_empty())
+            .is_some_and(|p| p.is_empty())
     }
     /// Checks if given position is hidden (wasn't explored before).
     pub fn is_hidden<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
@@ -768,7 +768,7 @@ impl Bot {
             .raw
             .visibility
             .get(pos.into())
-            .map_or(true, |p| p.is_hidden())
+            .is_none_or(|p| p.is_hidden())
     }
     /// Checks if given position is in fog of war (was explored before).
     pub fn is_fogged<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
@@ -777,7 +777,7 @@ impl Bot {
             .raw
             .visibility
             .get(pos.into())
-            .map_or(true, |p| p.is_fogged())
+            .is_none_or(|p| p.is_fogged())
     }
     /// Checks if given position is visible now.
     pub fn is_visible<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
@@ -786,7 +786,7 @@ impl Bot {
             .raw
             .visibility
             .get(pos.into())
-            .map_or(false, |p| p.is_visible())
+            .is_some_and(|p| p.is_visible())
     }
     /// Checks if given position is fully hidden
     /// (terrain isn't visible, only darkness; only in campain and custom maps).
@@ -796,7 +796,7 @@ impl Bot {
             .raw
             .visibility
             .get(pos.into())
-            .map_or(true, |p| p.is_full_hidden())
+            .is_none_or(|p| p.is_full_hidden())
     }
     /// Checks if given position is not hidden (was explored before).
     pub fn is_explored<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
@@ -805,7 +805,7 @@ impl Bot {
             .raw
             .visibility
             .get(pos.into())
-            .map_or(false, |p| p.is_explored())
+            .is_some_and(|p| p.is_explored())
     }
     /// Checks if given position has zerg's creep.
     pub fn has_creep<P: Into<(usize, usize)>>(&self, pos: P) -> bool {
@@ -815,7 +815,7 @@ impl Bot {
             .creep
             .read_lock()
             .get(pos.into())
-            .map_or(false, |p| p.is_empty())
+            .is_some_and(|p| p.is_empty())
     }
     pub(crate) fn init_data_for_unit(&mut self) {
         self.race = self.game_info.players[&self.player_id].race_actual.unwrap();

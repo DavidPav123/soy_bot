@@ -6,4 +6,4 @@ description = "Procedural macros for rust-sc2 API"
 readme = "../README.md"
 
 [dependencies]
-sc2-proc-macro = { path = "macro", version = "1" }
+sc2-proc-macro = { path = "../macro", version = "1" }

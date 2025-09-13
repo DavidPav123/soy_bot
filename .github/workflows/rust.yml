@@ -43,31 +43,28 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           override: true
-      - run: rustup component add rustfmt --toolchain nightly
-      - uses: actions-rs/cargo@v1
-        with:
-          toolchain: nightly
-          command: fmt
-          args: --all -- --check
+      - run: rustup component add rustfmt
+      - name: Run rustfmt from workspace root
+        run: |
+          cargo fmt --all --manifest-path ./Cargo.toml -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
       - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+      - name: Run clippy for `soy_bot` crate manifest
+        run: |
+          cargo clippy --manifest-path ./soy_bot/Cargo.toml -- -D warnings

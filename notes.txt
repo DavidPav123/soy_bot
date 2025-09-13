@@ -1,1 +1,3 @@
 Have to set: $env:SC2PATH = "C:\Program Files (x86)\StarCraft II\"   
+Format everything: cargo fmt --all && cargo fmt --all -- --check    
+Check everything: cargo clippy --all-targets --all-features  

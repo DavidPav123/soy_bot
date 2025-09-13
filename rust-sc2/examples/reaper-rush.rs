@@ -94,7 +94,7 @@ impl ReaperRushAI {
                             .my
                             .workers
                             .filter(|u| {
-                                u.target_tag().map_or(false, |target_tag| {
+                                u.target_tag().is_some_and(|target_tag| {
                                     local_minerals.contains(&target_tag)
                                         || (u.is_carrying_minerals() && target_tag == base.tag())
                                 })
@@ -118,7 +118,7 @@ impl ReaperRushAI {
             .gas_buildings
             .iter()
             .ready()
-            .filter(|g| g.vespene_contents().map_or(false, |vespene| vespene > 0))
+            .filter(|g| g.vespene_contents().is_some_and(|vespene| vespene > 0))
             .for_each(
                 |gas| match gas.assigned_harvesters().cmp(&gas.ideal_harvesters()) {
                     Ordering::Less => (0..(gas.ideal_harvesters().unwrap()
@@ -132,7 +132,7 @@ impl ReaperRushAI {
                                 .my
                                 .workers
                                 .filter(|u| {
-                                    u.target_tag().map_or(false, |target_tag| {
+                                    u.target_tag().is_some_and(|target_tag| {
                                         target_tag == gas.tag()
                                             || (u.is_carrying_vespene()
                                                 && target_tag == bases.closest(gas).unwrap().tag())
@@ -200,7 +200,7 @@ impl ReaperRushAI {
                     || u.is_carrying_resource()
                     || (u.is_gathering()
                         && u.target_tag()
-                            .map_or(true, |tag| !mineral_tags.contains(&tag))))
+                            .is_none_or(|tag| !mineral_tags.contains(&tag))))
             })
             .closest(pos)
     }

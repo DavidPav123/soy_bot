@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use rust_sc2::bot::Bot;
 use rust_sc2::prelude::*;
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 
 #[derive(Parser)]
 #[clap(version, author)]
@@ -73,9 +73,7 @@ enum Command {
     },
 }
 
-pub(crate) fn main(
-    mut bot: impl Player + DerefMut<Target = Bot> + Deref<Target = Bot>,
-) -> SC2Result<()> {
+pub(crate) fn main(mut bot: impl Player + DerefMut<Target = Bot>) -> SC2Result<()> {
     let args = Args::parse();
 
     if args.game_step == 0 {

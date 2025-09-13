@@ -26,7 +26,14 @@ use tungstenite::{connect, stream::MaybeTlsStream, WebSocket};
 pub(crate) type WS = WebSocket<MaybeTlsStream<TcpStream>>;
 pub type SC2Result<T> = Result<T, Box<dyn Error>>;
 
-#[cfg(all(feature = "wine_sc2", not(target_os = "linux")))]
+// When the `wine_sc2` feature is enabled, it's intended for running
+// SC2 under Wine on Linux. Allow building with `--all-features` on
+// other platforms (e.g., Windows) by only emitting a compile error for
+// truly unsupported platforms.
+#[cfg(all(
+    feature = "wine_sc2",
+    not(any(target_os = "linux", target_os = "windows"))
+))]
 compile_error!("Wine is only supported on linux");
 
 const HOST: &str = "127.0.0.1";

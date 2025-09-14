@@ -1,48 +1,43 @@
 use crate::soy_bot::SoyBot;
-use rust_sc2::geometry::Point3;
 use rust_sc2::prelude::*;
 
 impl Player for SoyBot {
+    /// Returns settings used to connect bot to the game.
     fn get_player_settings(&'_ self) -> PlayerSettings<'_> {
         PlayerSettings::new(Race::Terran)
+            .with_name("Soy Bot")
+            .raw_crop_to_playable_area(true)
     }
 
+    /// Called once on first step (i.e on game start).
     fn on_start(&mut self) -> SC2Result<()> {
+        if let Some(townhall) = self.units.my.townhalls.first() {
+            // Setting rallypoint for command center
+            townhall.smart(Target::Pos(self.start_center), false);
+
+            // Ordering scv on initial 50 minerals
+            townhall.train(UnitTypeId::SCV, false);
+            self.subtract_resources(UnitTypeId::SCV, true);
+        }
+
+        // Splitting workers to closest mineral crystals
+        for u in &self.units.my.workers {
+            if let Some(mineral) = self.units.mineral_fields.closest(u) {
+                u.gather(mineral.tag(), false);
+            }
+        }
+
         Ok(())
     }
 
+    /// Called on every game step. (Main logic of the bot should be here)
     fn on_step(&mut self, _iteration: usize) -> SC2Result<()> {
-        // Debug expansion locations
-        for exp in self.expansions.clone() {
-            let (loc, center) = (exp.loc, exp.center);
-            let z = self.get_z_height(loc) + 1.5;
-            self.debug
-                .draw_sphere(loc.to3(z), 0.6, Some((255, 128, 255)));
-            let z = self.get_z_height(center) + 1.5;
-            self.debug
-                .draw_sphere(center.to3(z), 0.5, Some((255, 128, 64)));
-        }
-
-        // Debug unit types
-        self.units
-            .all
-            .iter()
-            .map(|u| (format!("{:?}", u.type_id()), u.position3d()))
-            .collect::<Vec<(String, Point3)>>()
-            .into_iter()
-            .for_each(|(s, pos): (String, Point3)| {
-                self.debug
-                    .draw_text_world(&s, pos, Some((255, 128, 128)), None)
-            });
         self.assign_roles();
         self.execute_micro();
         Ok(())
     }
 
-    fn on_end(&self, _result: GameResult) -> SC2Result<()> {
-        Ok(())
-    }
-
+    /// Called when different events happen.
     fn on_event(&mut self, event: Event) -> SC2Result<()> {
         match event {
             Event::UnitCreated(tag) => {
@@ -98,9 +93,13 @@ impl Player for SoyBot {
                     _ => {}
                 }
             }
-            Event::ConstructionStarted(_) => todo!(),
-            Event::RandomRaceDetected(_race) => todo!(),
+            _ => {}
         }
+        Ok(())
+    }
+
+    /// Called once on last step with a result for your bot.
+    fn on_end(&self, _result: GameResult) -> SC2Result<()> {
         Ok(())
     }
 }

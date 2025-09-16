@@ -1,17 +1,114 @@
 use rust_sc2::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[bot]
 #[derive(Default)]
 pub struct SoyBot {
-    pub base_indices: HashMap<u64, usize>, // (base tag, expansion index)
-    pub assigned: HashMap<u64, HashSet<u64>>, // (mineral, workers)
-    pub free_workers: HashSet<u64>,        // tags of workers which aren't assigned to any work
-    pub harvesters: HashMap<u64, (u64, u64)>, // (worker, (target mineral, nearest townhall))
+    // (Base Tag, Expansion Index)
+    pub base_indices: HashMap<u64, usize>,
+    // (Mineral Patch, Workers)
+    pub assigned: HashMap<u64, HashSet<u64>>,
+    // tags of workers which aren't assigned to any work
+    pub free_workers: HashSet<u64>,
+    // (worker, (target mineral, nearest townhall))
+    pub harvesters: HashMap<u64, (u64, u64)>,
+    // Gather ability for workers
+    pub gather_ability: Option<AbilityId>,
+    // Return ability for workers
+    pub return_ability: Option<AbilityId>,
+    // A list of workers who are building things
+    pub builders: HashSet<u64>,
+    // Orders for what to train next
+    pub train_queue: VecDeque<UnitTypeId>,
+    // Orders for what to build next
+    pub build_queue: VecDeque<UnitTypeId>,
 }
 
 impl SoyBot {
-    pub fn assign_roles(&mut self) {
+    pub fn tactician(&mut self) {
+        //supply.left
+        if self.supply_left < 2 {
+            self.build_queue.push_front(UnitTypeId::SupplyDepot);
+            println!("[TACTICIAN]\tSupply Depot added to build queue");
+        }
+        if self.supply_workers < 200 && !self.train_queue.contains(&UnitTypeId::SCV) {
+            self.train_queue.push_back(UnitTypeId::SCV);
+            println!("[TACTICIAN]\tSCV added to train Queue");
+        }
+    }
+
+    pub fn train_units(&mut self) {
+        // get first element if queue is not empty
+        if let Some(unit) = self.train_queue.front() {
+            match unit {
+                UnitTypeId::SCV => {
+                    if self.can_afford(UnitTypeId::SCV, true)
+                        && let Some(cc) = self
+                            .units
+                            .my
+                            .townhalls
+                            .iter()
+                            .find(|u| u.is_ready() && u.is_almost_idle())
+                    {
+                        cc.train(UnitTypeId::SCV, false);
+                        self.subtract_resources(UnitTypeId::SCV, true);
+                        self.train_queue.pop_front();
+                        println!("[TRAIN UNITS]\tTraining SCV");
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    pub fn build(&mut self) {
+        let main_base = self.start_location.towards(self.game_info.map_center, 8.0);
+        if let Some(building) = self.build_queue.front() {
+            match building {
+                UnitTypeId::SupplyDepot => {
+                    if self.can_afford(UnitTypeId::SupplyDepot, false) {
+                        if let Some(location) = self.find_placement(
+                            UnitTypeId::SupplyDepot,
+                            main_base,
+                            Default::default(),
+                        ) {
+                            // take an owned copy of a harvester tag, then remove the assignment
+                            let last_harvester_tag = self
+                                .harvesters
+                                .keys()
+                                .copied()
+                                .last()
+                                .expect("No workers found while trying to build supply depot:(");
+                            // remove the harvester assignment before borrowing self for the unit reference
+                            self.harvesters.remove(&last_harvester_tag);
+                            let actual: &Unit = self
+                                .units
+                                .my
+                                .workers
+                                .iter()
+                                .find(|&worker| worker.tag() == last_harvester_tag)
+                                .expect("Harvester not found");
+                            actual.build(UnitTypeId::SupplyDepot, location, false);
+                            self.subtract_resources(UnitTypeId::SupplyDepot, false);
+                            return;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub fn get_worker_abilities(&mut self) {
+        let (gather, ret) = match self.race {
+            Race::Terran => (AbilityId::HarvestGatherSCV, AbilityId::HarvestReturnSCV),
+            Race::Zerg => (AbilityId::HarvestGatherDrone, AbilityId::HarvestReturnDrone),
+            Race::Protoss => (AbilityId::HarvestGatherProbe, AbilityId::HarvestReturnProbe),
+            _ => unreachable!(),
+        };
+        self.gather_ability = Some(gather);
+        self.return_ability = Some(ret);
+    }
+    pub fn manage_workers(&mut self) {
         let mut to_harvest = vec![];
         // iterator of (mineral tag, nearest base tag)
         let mut harvest_targets = self.base_indices.iter().flat_map(|(b, i)| {
@@ -35,14 +132,6 @@ impl SoyBot {
             self.harvesters.insert(w, t);
             self.assigned.entry(t.0).or_default().insert(w);
         }
-    }
-    pub fn execute_micro(&mut self) {
-        let (gather_ability, return_ability) = match self.race {
-            Race::Terran => (AbilityId::HarvestGatherSCV, AbilityId::HarvestReturnSCV),
-            Race::Zerg => (AbilityId::HarvestGatherDrone, AbilityId::HarvestReturnDrone),
-            Race::Protoss => (AbilityId::HarvestGatherProbe, AbilityId::HarvestReturnProbe),
-            _ => unreachable!(),
-        };
         let mut mineral_moving = HashSet::new();
 
         for u in &self.units.my.workers {
@@ -87,7 +176,9 @@ impl SoyBot {
                     }
                     // gathering
                     Some((ability, Target::Tag(t)))
-                        if ability == gather_ability && t == *mineral_tag =>
+                        if ability
+                            == self.gather_ability.expect("gather_ability is not assigned")
+                            && t == *mineral_tag =>
                     {
                         let mineral = &self.units.mineral_fields[*mineral_tag];
                         // execute move ability if far away from mineral and not colliding with other workers
@@ -113,7 +204,9 @@ impl SoyBot {
                     }
                     // returning
                     Some((ability, Target::Tag(t)))
-                        if ability == return_ability && t == *base_tag =>
+                        if ability
+                            == self.return_ability.expect("return_ability is not assigned")
+                            && t == *base_tag =>
                     {
                         let base = &self.units.my.townhalls[*base_tag];
                         // execute move ability if far away from base and not colliding with other workers

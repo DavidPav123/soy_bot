@@ -20,20 +20,16 @@ impl Player for SoyBot {
             self.subtract_resources(UnitTypeId::SCV, true);
         }
 
-        // Splitting workers to closest mineral crystals
-        for u in &self.units.my.workers {
-            if let Some(mineral) = self.units.mineral_fields.closest(u) {
-                u.gather(mineral.tag(), false);
-            }
-        }
-
+        self.get_worker_abilities();
         Ok(())
     }
 
     /// Called on every game step. (Main logic of the bot should be here)
     fn on_step(&mut self, _iteration: usize) -> SC2Result<()> {
-        self.assign_roles();
-        self.execute_micro();
+        self.tactician();
+        self.manage_workers();
+        self.train_units();
+        self.build();
         Ok(())
     }
 
@@ -48,6 +44,26 @@ impl Player for SoyBot {
                 }
             }
             Event::ConstructionComplete(tag) => {
+                if let Some(u) = self.units.my.structures.get(tag) {
+                    match u.type_id() {
+                        townhall if townhall == self.race_values.start_townhall => {
+                            println!("[Event][Construction Complete]\t{townhall:?}")
+                        }
+                        supply if supply == self.race_values.supply => {
+                            println!("[Event][Construction Complete]\t{supply:?}");
+                            println!("Free workers: {:?}", self.free_workers);
+                            println!("Free workers2: {:?}", self.units.my.workers.tags());
+                            todo!("Maybe scrap the two different free workers trackers and just use the built in one");
+                            todo!("Figure out why the thing is spamming build a depot");
+                            todo!("Do something with the free workers as they are just piling up right now");
+                            //let tags = self.units.my.workers.tags();
+                            //self.free_workers.extend(tags);
+                        }
+                        unhandled => {
+                            println!("[Event][Construction Complete]\tUnhandled {unhandled:?}")
+                        }
+                    }
+                }
                 if let Some(u) = self.units.my.structures.get(tag)
                     && u.type_id() == self.race_values.start_townhall
                     && let Some(idx) = self

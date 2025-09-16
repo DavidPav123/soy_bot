@@ -9,6 +9,10 @@ fn main() -> SC2Result<()> {
         &mut bot,
         Computer::new(Race::Random, Difficulty::Medium, None),
         "PylonAIE_v2",
-        Default::default(),
+        LaunchOptions {
+            sc2_version: Default::default(),
+            save_replay_as: Default::default(),
+            realtime: false,
+        },
     )
 }

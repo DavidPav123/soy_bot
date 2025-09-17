@@ -8,32 +8,38 @@ pub struct SoyBot {
     pub base_indices: HashMap<u64, usize>,
     // (Mineral Patch, Workers)
     pub assigned: HashMap<u64, HashSet<u64>>,
-    // tags of workers which aren't assigned to any work
-    pub free_workers: HashSet<u64>,
     // (worker, (target mineral, nearest townhall))
     pub harvesters: HashMap<u64, (u64, u64)>,
     // Gather ability for workers
     pub gather_ability: Option<AbilityId>,
     // Return ability for workers
     pub return_ability: Option<AbilityId>,
-    // A list of workers who are building things
-    pub builders: HashSet<u64>,
     // Orders for what to train next
     pub train_queue: VecDeque<UnitTypeId>,
     // Orders for what to build next
     pub build_queue: VecDeque<UnitTypeId>,
+    // Store what larva are currently in production
+    pub hatching: VecDeque<UnitTypeId>,
 }
 
 impl SoyBot {
     pub fn tactician(&mut self) {
         //supply.left
-        if self.supply_left < 2 {
-            self.build_queue.push_front(UnitTypeId::SupplyDepot);
-            println!("[TACTICIAN]\tSupply Depot added to build queue");
+        if self.supply_left < 2
+            && !self.train_queue.contains(&UnitTypeId::Overlord)
+            && !self.hatching.contains(&UnitTypeId::Overlord)
+        {
+            self.train_queue.push_front(UnitTypeId::Overlord);
+            println!("[TACTICIAN]\tSupply unit added to queue");
+            println!("Train Queue: {:?}", self.train_queue);
         }
-        if self.supply_workers < 200 && !self.train_queue.contains(&UnitTypeId::SCV) {
-            self.train_queue.push_back(UnitTypeId::SCV);
-            println!("[TACTICIAN]\tSCV added to train Queue");
+        if self.supply_workers < 200
+            && !self.train_queue.contains(&UnitTypeId::Drone)
+            && !self.hatching.contains(&UnitTypeId::Drone)
+        {
+            self.train_queue.push_back(UnitTypeId::Drone);
+            println!("[TACTICIAN]\tWorker unit added to train Queue");
+            println!("Train Queue: {:?}", self.train_queue);
         }
     }
 
@@ -41,19 +47,28 @@ impl SoyBot {
         // get first element if queue is not empty
         if let Some(unit) = self.train_queue.front() {
             match unit {
-                UnitTypeId::SCV => {
-                    if self.can_afford(UnitTypeId::SCV, true)
-                        && let Some(cc) = self
-                            .units
-                            .my
-                            .townhalls
-                            .iter()
-                            .find(|u| u.is_ready() && u.is_almost_idle())
+                UnitTypeId::Drone => {
+                    if !self.units.my.larvas.is_empty()
+                        && self.can_afford(UnitTypeId::Drone, true)
+                        && let Some(larva) = self.units.my.larvas.pop()
                     {
-                        cc.train(UnitTypeId::SCV, false);
-                        self.subtract_resources(UnitTypeId::SCV, true);
+                        larva.train(UnitTypeId::Drone, false);
+                        self.subtract_resources(UnitTypeId::Drone, true);
                         self.train_queue.pop_front();
-                        println!("[TRAIN UNITS]\tTraining SCV");
+                        self.hatching.push_back(UnitTypeId::Drone);
+                        println!("[TRAIN UNITS]\tTraining Worker");
+                    }
+                }
+                UnitTypeId::Overlord => {
+                    if !self.units.my.larvas.is_empty()
+                        && self.can_afford(UnitTypeId::Overlord, false)
+                        && let Some(larva) = self.units.my.larvas.pop()
+                    {
+                        larva.train(UnitTypeId::Overlord, false);
+                        self.subtract_resources(UnitTypeId::Overlord, false);
+                        self.train_queue.pop_front();
+                        self.hatching.push_back(UnitTypeId::Overlord);
+                        println!("[TRAIN UNITS]\tTraining Overlord");
                     }
                 }
                 _ => {}
@@ -64,35 +79,6 @@ impl SoyBot {
         let main_base = self.start_location.towards(self.game_info.map_center, 8.0);
         if let Some(building) = self.build_queue.front() {
             match building {
-                UnitTypeId::SupplyDepot => {
-                    if self.can_afford(UnitTypeId::SupplyDepot, false) {
-                        if let Some(location) = self.find_placement(
-                            UnitTypeId::SupplyDepot,
-                            main_base,
-                            Default::default(),
-                        ) {
-                            // take an owned copy of a harvester tag, then remove the assignment
-                            let last_harvester_tag = self
-                                .harvesters
-                                .keys()
-                                .copied()
-                                .last()
-                                .expect("No workers found while trying to build supply depot:(");
-                            // remove the harvester assignment before borrowing self for the unit reference
-                            self.harvesters.remove(&last_harvester_tag);
-                            let actual: &Unit = self
-                                .units
-                                .my
-                                .workers
-                                .iter()
-                                .find(|&worker| worker.tag() == last_harvester_tag)
-                                .expect("Harvester not found");
-                            actual.build(UnitTypeId::SupplyDepot, location, false);
-                            self.subtract_resources(UnitTypeId::SupplyDepot, false);
-                            return;
-                        }
-                    }
-                }
                 _ => {}
             }
         }
@@ -119,7 +105,7 @@ impl SoyBot {
                 .flat_map(move |(m, c)| vec![(*m, *b); c])
         });
 
-        for w in &self.free_workers {
+        for w in self.units.my.workers.idle().tags() {
             if let Some(t) = harvest_targets.next() {
                 to_harvest.push((*w, t));
             } else {
@@ -128,7 +114,6 @@ impl SoyBot {
         }
 
         for (w, t) in to_harvest {
-            self.free_workers.remove(&w);
             self.harvesters.insert(w, t);
             self.assigned.entry(t.0).or_default().insert(w);
         }

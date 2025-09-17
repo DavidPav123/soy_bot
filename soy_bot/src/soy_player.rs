@@ -4,7 +4,7 @@ use rust_sc2::prelude::*;
 impl Player for SoyBot {
     /// Returns settings used to connect bot to the game.
     fn get_player_settings(&'_ self) -> PlayerSettings<'_> {
-        PlayerSettings::new(Race::Terran)
+        PlayerSettings::new(Race::Zerg)
             .with_name("Soy Bot")
             .raw_crop_to_playable_area(true)
     }
@@ -16,8 +16,8 @@ impl Player for SoyBot {
             townhall.smart(Target::Pos(self.start_center), false);
 
             // Ordering scv on initial 50 minerals
-            townhall.train(UnitTypeId::SCV, false);
-            self.subtract_resources(UnitTypeId::SCV, true);
+            townhall.train(UnitTypeId::Drone, false);
+            self.subtract_resources(UnitTypeId::Drone, true);
         }
 
         self.get_worker_abilities();
@@ -37,10 +37,30 @@ impl Player for SoyBot {
     fn on_event(&mut self, event: Event) -> SC2Result<()> {
         match event {
             Event::UnitCreated(tag) => {
-                if let Some(u) = self.units.my.units.get(tag)
-                    && u.type_id() == self.race_values.worker
-                {
-                    self.free_workers.insert(tag);
+                if let Some(u) = self.units.my.units.get(tag) {
+                    match u.type_id() {
+                        drone if drone == self.race_values.start_townhall => {
+                            println!("[Event][Construction Complete]\t{drone:?}");
+                            let find_index = self.hatching.iter().position(|d| *d == drone);
+                            if let Some(idx) = find_index {
+                                self.hatching.remove(idx);
+                            }
+                        }
+                        overlord if overlord == self.race_values.supply => {
+                            println!("[Event][Unit Created]\t{overlord:?}");
+                            let find_index = self.hatching.iter().position(|d| *d == overlord);
+                            if let Some(idx) = find_index {
+                                self.hatching.remove(idx);
+                            }
+                        }
+                        unhandled => {
+                            println!("[Event][Unit Created]\tUnhandled {unhandled:?}");
+                            let find_index = self.hatching.iter().position(|d| *d == unhandled);
+                            if let Some(idx) = find_index {
+                                self.hatching.remove(idx);
+                            }
+                        }
+                    }
                 }
             }
             Event::ConstructionComplete(tag) => {
@@ -48,16 +68,6 @@ impl Player for SoyBot {
                     match u.type_id() {
                         townhall if townhall == self.race_values.start_townhall => {
                             println!("[Event][Construction Complete]\t{townhall:?}")
-                        }
-                        supply if supply == self.race_values.supply => {
-                            println!("[Event][Construction Complete]\t{supply:?}");
-                            println!("Free workers: {:?}", self.free_workers);
-                            println!("Free workers2: {:?}", self.units.my.workers.tags());
-                            todo!("Maybe scrap the two different free workers trackers and just use the built in one");
-                            todo!("Figure out why the thing is spamming build a depot");
-                            todo!("Do something with the free workers as they are just piling up right now");
-                            //let tags = self.units.my.workers.tags();
-                            //self.free_workers.extend(tags);
                         }
                         unhandled => {
                             println!("[Event][Construction Complete]\tUnhandled {unhandled:?}")
@@ -81,7 +91,6 @@ impl Player for SoyBot {
                     if let Some(ws) = bot.assigned.remove(&tag) {
                         for w in ws {
                             bot.harvesters.remove(&w);
-                            bot.free_workers.insert(w);
                         }
                     }
                 };
@@ -101,7 +110,7 @@ impl Player for SoyBot {
                             });
                         // free worker died
                         } else {
-                            self.free_workers.remove(&tag);
+                            println!("Worker died?");
                         }
                     }
                     // mineral mined out

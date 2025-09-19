@@ -7,7 +7,7 @@ fn main() -> SC2Result<()> {
     let mut bot = SoyBot::default();
     run_vs_computer(
         &mut bot,
-        Computer::new(Race::Random, Difficulty::Medium, None),
+        Computer::new(Race::Random, Difficulty::VeryEasy, None),
         "PylonAIE_v2",
         LaunchOptions {
             sc2_version: Default::default(),

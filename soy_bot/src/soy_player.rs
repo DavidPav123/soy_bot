@@ -39,19 +39,29 @@ impl Player for SoyBot {
             Event::UnitCreated(tag) => {
                 if let Some(u) = self.units.my.units.get(tag) {
                     match u.type_id() {
-                        drone if drone == self.race_values.start_townhall => {
-                            println!("[Event][Construction Complete]\t{drone:?}");
+                        drone if drone == self.race_values.worker => {
+                            println!("[Event][Unit Created]\tDrone");
                             let find_index = self.hatching.iter().position(|d| *d == drone);
                             if let Some(idx) = find_index {
                                 self.hatching.remove(idx);
                             }
                         }
                         overlord if overlord == self.race_values.supply => {
-                            println!("[Event][Unit Created]\t{overlord:?}");
+                            println!("[Event][Unit Created]\tOverlord");
                             let find_index = self.hatching.iter().position(|d| *d == overlord);
                             if let Some(idx) = find_index {
                                 self.hatching.remove(idx);
                             }
+                        }
+                        zergling if zergling == UnitTypeId::Zergling => {
+                            println!("[Event][Unit Created]\tZergling");
+                            let find_index = self.hatching.iter().position(|d| *d == zergling);
+                            if let Some(idx) = find_index {
+                                self.hatching.remove(idx);
+                            }
+                        }
+                        larva if larva == UnitTypeId::Larva => {
+                            println!("[Event][Unit Created]\tLarva")
                         }
                         unhandled => {
                             println!("[Event][Unit Created]\tUnhandled {unhandled:?}");
@@ -68,6 +78,11 @@ impl Player for SoyBot {
                     match u.type_id() {
                         townhall if townhall == self.race_values.start_townhall => {
                             println!("[Event][Construction Complete]\t{townhall:?}")
+                        }
+                        pool if pool == UnitTypeId::SpawningPool => {
+                            println!("[Event][Construction Complete]\tSpawning Pool");
+                            let pos = self.building.iter().position(|&u| u == UnitTypeId::SpawningPool).expect("[Event][Spawning Pool]\tAttempted to remove spawning pool from building queue but it didn't exist.");
+                            self.building.remove(pos);
                         }
                         unhandled => {
                             println!("[Event][Construction Complete]\tUnhandled {unhandled:?}")
@@ -108,9 +123,9 @@ impl Player for SoyBot {
                             self.assigned.entry(m).and_modify(|ws| {
                                 ws.remove(&tag);
                             });
-                        // free worker died
+                        // free worker died or turned into building
                         } else {
-                            println!("Worker died?");
+                            println!("");
                         }
                     }
                     // mineral mined out

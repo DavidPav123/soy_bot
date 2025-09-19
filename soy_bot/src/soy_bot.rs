@@ -57,6 +57,26 @@ impl SoyBot {
                         println!("[TRAIN UNITS]\tTraining Overlord");
                     }
                 }
+                UnitTypeId::Zergling => {
+                    if !self.units.my.larvas.is_empty()
+                        && self
+                            .units
+                            .my
+                            .structures
+                            .iter()
+                            .of_type(UnitTypeId::SpawningPool).filter(|unit| unit.is_ready())
+                            .count()
+                            > 0
+                        && self.can_afford(UnitTypeId::Zergling, true)
+                        && let Some(larva) = self.units.my.larvas.pop()
+                    {
+                        larva.train(UnitTypeId::Zergling, false);
+                        self.subtract_resources(UnitTypeId::Zergling, true);
+                        self.train_queue.pop_front();
+                        self.hatching.push_back(UnitTypeId::Zergling);
+                        println!("[TRAIN UNITS]\tTraining Zergling");
+                    }
+                }
                 _ => {}
             }
         }
@@ -249,12 +269,13 @@ impl SoyBot {
                 println!("[TACTICIAN]\tOverlord added to Train queue");
                 println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
             }
-            if self.supply_workers < 200
-                && !self.train_queue.contains(&UnitTypeId::Drone)
-                && !self.hatching.contains(&UnitTypeId::Drone)
+            if self.supply_used < 200
+                && self.units.all.iter().of_type(UnitTypeId::Larva).count() > 0
+                && self.units.all.iter().of_type(UnitTypeId::Larva).count()
+                    > self.train_queue.iter().count()
             {
-                self.train_queue.push_back(UnitTypeId::Drone);
-                println!("[TACTICIAN]\tWorker unit added to Train Queue");
+                self.train_queue.push_back(UnitTypeId::Zergling);
+                println!("[TACTICIAN]\tZergling added to Train Queue");
                 println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
             }
         } else {

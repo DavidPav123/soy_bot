@@ -20,27 +20,13 @@ pub struct SoyBot {
     pub build_queue: VecDeque<UnitTypeId>,
     // Store what larva are currently in production
     pub hatching: VecDeque<UnitTypeId>,
+    // Queue for units that are on their way to build something
+    pub building: Vec<UnitTypeId>,
 }
 
 impl SoyBot {
     pub fn tactician(&mut self) {
-        //supply.left
-        if self.supply_left < 2
-            && !self.train_queue.contains(&UnitTypeId::Overlord)
-            && !self.hatching.contains(&UnitTypeId::Overlord)
-        {
-            self.train_queue.push_front(UnitTypeId::Overlord);
-            println!("[TACTICIAN]\tSupply unit added to queue");
-            println!("Train Queue: {:?}", self.train_queue);
-        }
-        if self.supply_workers < 200
-            && !self.train_queue.contains(&UnitTypeId::Drone)
-            && !self.hatching.contains(&UnitTypeId::Drone)
-        {
-            self.train_queue.push_back(UnitTypeId::Drone);
-            println!("[TACTICIAN]\tWorker unit added to train Queue");
-            println!("Train Queue: {:?}", self.train_queue);
-        }
+        self.zergling_rush();
     }
 
     pub fn train_units(&mut self) {
@@ -79,6 +65,28 @@ impl SoyBot {
         let main_base = self.start_location.towards(self.game_info.map_center, 8.0);
         if let Some(building) = self.build_queue.front() {
             match building {
+                UnitTypeId::SpawningPool => {
+                    if self.can_afford(UnitTypeId::SpawningPool, false) {
+                        let location = self
+                            .find_placement(
+                                UnitTypeId::SpawningPool,
+                                main_base,
+                                PlacementOptions {
+                                    ..Default::default()
+                                },
+                            )
+                            .expect("Couldn't find place to put spawning pool :(");
+                        self.units
+                            .my
+                            .workers
+                            .first()
+                            .expect("No workers to build spawning pool :(")
+                            .build(UnitTypeId::SpawningPool, location, false);
+                        println!("[BUILD]\tBuilding Spawning Pool");
+                        self.build_queue.pop_front();
+                        self.building.push(UnitTypeId::SpawningPool);
+                    }
+                }
                 _ => {}
             }
         }
@@ -218,6 +226,42 @@ impl SoyBot {
                     u.gather(*mineral_tag, false);
                 }
                 mineral_moving.insert(u.tag());
+            }
+        }
+    }
+
+    fn zergling_rush(&mut self) {
+        if self
+            .units
+            .my
+            .structures
+            .iter()
+            .of_type(UnitTypeId::SpawningPool)
+            .count()
+            > 0
+            || self.building.contains(&UnitTypeId::SpawningPool)
+        {
+            if self.supply_left < 2
+                && !self.train_queue.contains(&UnitTypeId::Overlord)
+                && !self.hatching.contains(&UnitTypeId::Overlord)
+            {
+                self.train_queue.push_front(UnitTypeId::Overlord);
+                println!("[TACTICIAN]\tOverlord added to Train queue");
+                println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
+            }
+            if self.supply_workers < 200
+                && !self.train_queue.contains(&UnitTypeId::Drone)
+                && !self.hatching.contains(&UnitTypeId::Drone)
+            {
+                self.train_queue.push_back(UnitTypeId::Drone);
+                println!("[TACTICIAN]\tWorker unit added to Train Queue");
+                println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
+            }
+        } else {
+            if !self.build_queue.contains(&UnitTypeId::SpawningPool) {
+                self.build_queue.push_front(UnitTypeId::SpawningPool);
+                println!("[TACTICIAN]\tSpawning Pool added to Build Queue");
+                println!("[TACTICIAN]\tBuild Queue: {:?}", self.build_queue);
             }
         }
     }

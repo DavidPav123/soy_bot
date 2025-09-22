@@ -93,12 +93,21 @@ impl SoyBot {
     }
 
     fn marine_rush(&mut self) {
-        if self.supply_left < 2 && !self.build_queue.contains(&UnitTypeId::SupplyDepot) {
+        if ((self
+            .units
+            .my
+            .structures
+            .of_type(UnitTypeId::SupplyDepot)
+            .len()
+            == 0)
+            | (self.supply_left < 2))
+            && !self.build_queue.contains(&UnitTypeId::SupplyDepot)
+        {
             self.build_queue.push_front(UnitTypeId::SupplyDepot);
             println!("[TACTICIAN]\tSupply Depot added to Build queue");
             println!("[TACTICIAN]\tBuild Queue: {:?}", self.build_queue);
         }
-        if self.supply_used < 200  && !self.train_queue.contains(&UnitTypeId::Marine){
+        if self.supply_used < 200 && !self.train_queue.contains(&UnitTypeId::Marine) {
             self.train_queue.push_back(UnitTypeId::Marine);
             println!("[TACTICIAN]\tMarine added to Train Queue");
             println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);

@@ -14,7 +14,7 @@ struct LightningMcQueen {
 
 impl Player for LightningMcQueen {
     fn get_player_settings(&'_ self) -> PlayerSettings<'_> {
-        PlayerSettings::new(self.race).raw_crop_to_playable_area(true)
+        PlayerSettings::new(Race::Zerg).raw_crop_to_playable_area(true)
     }
 
     fn on_event(&mut self, event: Event) -> SC2Result<()> {

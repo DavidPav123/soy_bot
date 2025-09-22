@@ -4,36 +4,38 @@ use std::collections::{HashMap, HashSet, VecDeque};
 #[bot]
 #[derive(Default)]
 pub struct SoyBot {
-    // (Base Tag, Expansion Index)
+    /// (Base Tag, Expansion Index)
     pub base_indices: HashMap<u64, usize>,
-    // (Mineral Patch, Workers)
+    /// (Mineral Patch, Workers)
     pub assigned: HashMap<u64, HashSet<u64>>,
-    // (worker, (target mineral, nearest townhall))
+    /// tags of workers which aren't assigned to any work
+    pub free_workers: HashSet<u64>,
+    /// (worker, (target mineral, nearest townhall))
     pub harvesters: HashMap<u64, (u64, u64)>,
-    // Gather ability for workers
+    /// Gather ability for workers
     pub gather_ability: Option<AbilityId>,
-    // Return ability for workers
+    /// Return ability for workers
     pub return_ability: Option<AbilityId>,
-    // Orders for what to train next
+    /// Orders for what to train next
     pub train_queue: VecDeque<UnitTypeId>,
-    // Orders for what to build next
+    /// Orders for what to build next
     pub build_queue: VecDeque<UnitTypeId>,
-    // Store what larva are currently in production
-    pub hatching: VecDeque<UnitTypeId>,
-    // Queue for units that are on their way to build something
+    /// Queue for units that are on their way to build something
     pub building: Vec<UnitTypeId>,
+    /// Vector of attacking units
+    pub attackers: HashSet<u64>,
 }
 
 impl SoyBot {
     pub fn tactician(&mut self) {
-        self.zergling_rush();
+        self.marine_rush();
     }
 
     pub fn train_units(&mut self) {
         // get first element if queue is not empty
         if let Some(unit) = self.train_queue.front() {
             match unit {
-                UnitTypeId::Drone => {
+                UnitTypeId::SCV => {
                     if !self.units.my.larvas.is_empty()
                         && self.can_afford(UnitTypeId::Drone, true)
                         && let Some(larva) = self.units.my.larvas.pop()
@@ -41,40 +43,7 @@ impl SoyBot {
                         larva.train(UnitTypeId::Drone, false);
                         self.subtract_resources(UnitTypeId::Drone, true);
                         self.train_queue.pop_front();
-                        self.hatching.push_back(UnitTypeId::Drone);
                         println!("[TRAIN UNITS]\tTraining Worker");
-                    }
-                }
-                UnitTypeId::Overlord => {
-                    if !self.units.my.larvas.is_empty()
-                        && self.can_afford(UnitTypeId::Overlord, false)
-                        && let Some(larva) = self.units.my.larvas.pop()
-                    {
-                        larva.train(UnitTypeId::Overlord, false);
-                        self.subtract_resources(UnitTypeId::Overlord, false);
-                        self.train_queue.pop_front();
-                        self.hatching.push_back(UnitTypeId::Overlord);
-                        println!("[TRAIN UNITS]\tTraining Overlord");
-                    }
-                }
-                UnitTypeId::Zergling => {
-                    if !self.units.my.larvas.is_empty()
-                        && self
-                            .units
-                            .my
-                            .structures
-                            .iter()
-                            .of_type(UnitTypeId::SpawningPool).filter(|unit| unit.is_ready())
-                            .count()
-                            > 0
-                        && self.can_afford(UnitTypeId::Zergling, true)
-                        && let Some(larva) = self.units.my.larvas.pop()
-                    {
-                        larva.train(UnitTypeId::Zergling, false);
-                        self.subtract_resources(UnitTypeId::Zergling, true);
-                        self.train_queue.pop_front();
-                        self.hatching.push_back(UnitTypeId::Zergling);
-                        println!("[TRAIN UNITS]\tTraining Zergling");
                     }
                 }
                 _ => {}
@@ -85,26 +54,26 @@ impl SoyBot {
         let main_base = self.start_location.towards(self.game_info.map_center, 8.0);
         if let Some(building) = self.build_queue.front() {
             match building {
-                UnitTypeId::SpawningPool => {
-                    if self.can_afford(UnitTypeId::SpawningPool, false) {
+                UnitTypeId::SupplyDepot => {
+                    if self.can_afford(UnitTypeId::SupplyDepot, false) {
                         let location = self
                             .find_placement(
-                                UnitTypeId::SpawningPool,
+                                UnitTypeId::SupplyDepot,
                                 main_base,
                                 PlacementOptions {
                                     ..Default::default()
                                 },
                             )
-                            .expect("Couldn't find place to put spawning pool :(");
+                            .expect("Couldn't find place to put supply depot :(");
                         self.units
                             .my
                             .workers
                             .first()
-                            .expect("No workers to build spawning pool :(")
-                            .build(UnitTypeId::SpawningPool, location, false);
-                        println!("[BUILD]\tBuilding Spawning Pool");
+                            .expect("No workers to build supply depot :(")
+                            .build(UnitTypeId::SupplyDepot, location, false);
+                        println!("[BUILD]\tBuilding Supply Depot");
                         self.build_queue.pop_front();
-                        self.building.push(UnitTypeId::SpawningPool);
+                        self.building.push(UnitTypeId::SupplyDepot);
                     }
                 }
                 _ => {}
@@ -122,7 +91,21 @@ impl SoyBot {
         self.gather_ability = Some(gather);
         self.return_ability = Some(ret);
     }
-    pub fn manage_workers(&mut self) {
+
+    fn marine_rush(&mut self) {
+        if self.supply_left < 2 && !self.build_queue.contains(&UnitTypeId::SupplyDepot) {
+            self.build_queue.push_front(UnitTypeId::SupplyDepot);
+            println!("[TACTICIAN]\tSupply Depot added to Build queue");
+            println!("[TACTICIAN]\tBuild Queue: {:?}", self.build_queue);
+        }
+        if self.supply_used < 200  && !self.train_queue.contains(&UnitTypeId::Marine){
+            self.train_queue.push_back(UnitTypeId::Marine);
+            println!("[TACTICIAN]\tMarine added to Train Queue");
+            println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
+        }
+    }
+
+    pub fn assign_roles(&mut self) {
         let mut to_harvest = vec![];
         // iterator of (mineral tag, nearest base tag)
         let mut harvest_targets = self.base_indices.iter().flat_map(|(b, i)| {
@@ -133,7 +116,7 @@ impl SoyBot {
                 .flat_map(move |(m, c)| vec![(*m, *b); c])
         });
 
-        for w in self.units.my.workers.idle().tags() {
+        for w in &self.free_workers {
             if let Some(t) = harvest_targets.next() {
                 to_harvest.push((*w, t));
             } else {
@@ -142,9 +125,19 @@ impl SoyBot {
         }
 
         for (w, t) in to_harvest {
+            self.free_workers.remove(&w);
             self.harvesters.insert(w, t);
             self.assigned.entry(t.0).or_default().insert(w);
         }
+    }
+
+    pub fn execute_micro(&mut self) {
+        let (gather_ability, return_ability) = match self.race {
+            Race::Terran => (AbilityId::HarvestGatherSCV, AbilityId::HarvestReturnSCV),
+            Race::Zerg => (AbilityId::HarvestGatherDrone, AbilityId::HarvestReturnDrone),
+            Race::Protoss => (AbilityId::HarvestGatherProbe, AbilityId::HarvestReturnProbe),
+            _ => unreachable!(),
+        };
         let mut mineral_moving = HashSet::new();
 
         for u in &self.units.my.workers {
@@ -189,9 +182,7 @@ impl SoyBot {
                     }
                     // gathering
                     Some((ability, Target::Tag(t)))
-                        if ability
-                            == self.gather_ability.expect("gather_ability is not assigned")
-                            && t == *mineral_tag =>
+                        if ability == gather_ability && t == *mineral_tag =>
                     {
                         let mineral = &self.units.mineral_fields[*mineral_tag];
                         // execute move ability if far away from mineral and not colliding with other workers
@@ -217,9 +208,7 @@ impl SoyBot {
                     }
                     // returning
                     Some((ability, Target::Tag(t)))
-                        if ability
-                            == self.return_ability.expect("return_ability is not assigned")
-                            && t == *base_tag =>
+                        if ability == return_ability && t == *base_tag =>
                     {
                         let base = &self.units.my.townhalls[*base_tag];
                         // execute move ability if far away from base and not colliding with other workers
@@ -246,43 +235,6 @@ impl SoyBot {
                     u.gather(*mineral_tag, false);
                 }
                 mineral_moving.insert(u.tag());
-            }
-        }
-    }
-
-    fn zergling_rush(&mut self) {
-        if self
-            .units
-            .my
-            .structures
-            .iter()
-            .of_type(UnitTypeId::SpawningPool)
-            .count()
-            > 0
-            || self.building.contains(&UnitTypeId::SpawningPool)
-        {
-            if self.supply_left < 2
-                && !self.train_queue.contains(&UnitTypeId::Overlord)
-                && !self.hatching.contains(&UnitTypeId::Overlord)
-            {
-                self.train_queue.push_front(UnitTypeId::Overlord);
-                println!("[TACTICIAN]\tOverlord added to Train queue");
-                println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
-            }
-            if self.supply_used < 200
-                && self.units.all.iter().of_type(UnitTypeId::Larva).count() > 0
-                && self.units.all.iter().of_type(UnitTypeId::Larva).count()
-                    > self.train_queue.iter().count()
-            {
-                self.train_queue.push_back(UnitTypeId::Zergling);
-                println!("[TACTICIAN]\tZergling added to Train Queue");
-                println!("[TACTICIAN]\tTrain Queue: {:?}", self.train_queue);
-            }
-        } else {
-            if !self.build_queue.contains(&UnitTypeId::SpawningPool) {
-                self.build_queue.push_front(UnitTypeId::SpawningPool);
-                println!("[TACTICIAN]\tSpawning Pool added to Build Queue");
-                println!("[TACTICIAN]\tBuild Queue: {:?}", self.build_queue);
             }
         }
     }

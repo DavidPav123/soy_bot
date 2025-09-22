@@ -4,7 +4,7 @@ use rust_sc2::prelude::*;
 impl Player for SoyBot {
     /// Returns settings used to connect bot to the game.
     fn get_player_settings(&'_ self) -> PlayerSettings<'_> {
-        PlayerSettings::new(Race::Zerg)
+        PlayerSettings::new(Race::Terran)
             .with_name("Soy Bot")
             .raw_crop_to_playable_area(true)
     }
@@ -27,9 +27,10 @@ impl Player for SoyBot {
     /// Called on every game step. (Main logic of the bot should be here)
     fn on_step(&mut self, _iteration: usize) -> SC2Result<()> {
         self.tactician();
-        self.manage_workers();
         self.train_units();
         self.build();
+        self.assign_roles();
+        self.execute_micro();
         Ok(())
     }
 
@@ -39,36 +40,16 @@ impl Player for SoyBot {
             Event::UnitCreated(tag) => {
                 if let Some(u) = self.units.my.units.get(tag) {
                     match u.type_id() {
-                        drone if drone == self.race_values.worker => {
-                            println!("[Event][Unit Created]\tDrone");
-                            let find_index = self.hatching.iter().position(|d| *d == drone);
-                            if let Some(idx) = find_index {
-                                self.hatching.remove(idx);
-                            }
+                        worker if worker == self.race_values.worker => {
+                            println!("[Event][Unit Created]\t{worker:?}");
+                            self.free_workers.insert(tag);
                         }
-                        overlord if overlord == self.race_values.supply => {
-                            println!("[Event][Unit Created]\tOverlord");
-                            let find_index = self.hatching.iter().position(|d| *d == overlord);
-                            if let Some(idx) = find_index {
-                                self.hatching.remove(idx);
-                            }
-                        }
-                        zergling if zergling == UnitTypeId::Zergling => {
-                            println!("[Event][Unit Created]\tZergling");
-                            let find_index = self.hatching.iter().position(|d| *d == zergling);
-                            if let Some(idx) = find_index {
-                                self.hatching.remove(idx);
-                            }
-                        }
-                        larva if larva == UnitTypeId::Larva => {
-                            println!("[Event][Unit Created]\tLarva")
+                        marine if marine == UnitTypeId::Marine => {
+                            println!("[Event][Unit Created]\tMarine");
+                            self.attackers.insert(tag);
                         }
                         unhandled => {
                             println!("[Event][Unit Created]\tUnhandled {unhandled:?}");
-                            let find_index = self.hatching.iter().position(|d| *d == unhandled);
-                            if let Some(idx) = find_index {
-                                self.hatching.remove(idx);
-                            }
                         }
                     }
                 }
@@ -78,11 +59,6 @@ impl Player for SoyBot {
                     match u.type_id() {
                         townhall if townhall == self.race_values.start_townhall => {
                             println!("[Event][Construction Complete]\t{townhall:?}")
-                        }
-                        pool if pool == UnitTypeId::SpawningPool => {
-                            println!("[Event][Construction Complete]\tSpawning Pool");
-                            let pos = self.building.iter().position(|&u| u == UnitTypeId::SpawningPool).expect("[Event][Spawning Pool]\tAttempted to remove spawning pool from building queue but it didn't exist.");
-                            self.building.remove(pos);
                         }
                         unhandled => {
                             println!("[Event][Construction Complete]\tUnhandled {unhandled:?}")
@@ -106,26 +82,37 @@ impl Player for SoyBot {
                     if let Some(ws) = bot.assigned.remove(&tag) {
                         for w in ws {
                             bot.harvesters.remove(&w);
+                            bot.free_workers.insert(w);
                         }
                     }
                 };
 
                 match alliance {
                     Some(Alliance::Own) => {
-                        // townhall destroyed
+                        // Townhall destroyed
                         if let Some(idx) = self.base_indices.remove(&tag) {
                             let exp = &self.expansions[idx];
                             for m in exp.minerals.clone() {
                                 remove_mineral(self, m);
                             }
-                        // harvester died
-                        } else if let Some((m, _)) = self.harvesters.remove(&tag) {
+                        }
+                        // Harvester died
+                        else if let Some((m, _)) = self.harvesters.remove(&tag) {
                             self.assigned.entry(m).and_modify(|ws| {
                                 ws.remove(&tag);
                             });
-                        // free worker died or turned into building
-                        } else {
-                            println!("");
+                        }
+                        // Free worker killed
+                        else if self.free_workers.remove(&tag) {
+                            println!("[Event][Unit Destroyed]\tFree worker killed")
+                        }
+                        // Attack unit died
+                        else if self.attackers.remove(&tag) {
+                            println!("[Event][Unit Destroyed]\tMarine killed")
+                        }
+                        // Handle unhandled unit death
+                        else {
+                            println!("[Event][Unit Destroyed]\tUnhandled unit destroyed")
                         }
                     }
                     // mineral mined out

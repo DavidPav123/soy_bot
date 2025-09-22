@@ -12,7 +12,7 @@ fn main() -> SC2Result<()> {
         LaunchOptions {
             sc2_version: Default::default(),
             save_replay_as: Default::default(),
-            realtime: false,
+            realtime: true,
         },
     )
 }

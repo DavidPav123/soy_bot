@@ -34,9 +34,9 @@ enum Command {
         #[clap(short, long)]
         map: String,
         /// Set opponent race
-        #[clap(short, long, default_value = "Random")]
+        #[clap(short, long, default_value = "Zerg")]
         race: Race,
-        /// Set opponent diffuculty
+        /// Set opponent difficulty
         #[clap(short, long)]
         difficulty: Option<Difficulty>,
         /// Set opponent build

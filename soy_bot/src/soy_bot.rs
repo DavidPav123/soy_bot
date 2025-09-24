@@ -20,7 +20,7 @@ pub struct SoyBot {
     pub train_queue: VecDeque<UnitTypeId>,
     /// Orders for what to build next
     pub build_queue: VecDeque<UnitTypeId>,
-    /// Queue for units that are on their way to build something
+    /// Queue for buildings that are starting to be built
     pub building: Vec<UnitTypeId>,
     /// Vector of attacking units
     pub attackers: HashSet<u64>,
@@ -29,6 +29,7 @@ pub struct SoyBot {
 impl SoyBot {
     pub fn tactician(&mut self) {
         self.marine_rush();
+        todo!("Add SVC back to free workers queue after they finish building the supply depot")
     }
 
     pub fn train_units(&mut self) {
@@ -65,12 +66,21 @@ impl SoyBot {
                                 },
                             )
                             .expect("Couldn't find place to put supply depot :(");
-                        self.units
+                        let builder_tag = self
+                            .units
                             .my
                             .workers
                             .first()
                             .expect("No workers to build supply depot :(")
-                            .build(UnitTypeId::SupplyDepot, location, false);
+                            .tag();
+                        self.harvesters.remove(&builder_tag);
+                        let builder = self
+                            .units
+                            .my
+                            .workers
+                            .first()
+                            .expect("No workers to build supply depot :(");
+                        builder.build(UnitTypeId::SupplyDepot, location, false);
                         println!("[BUILD]\tBuilding Supply Depot");
                         self.build_queue.pop_front();
                         self.building.push(UnitTypeId::SupplyDepot);
@@ -102,6 +112,7 @@ impl SoyBot {
             == 0)
             | (self.supply_left < 2))
             && !self.build_queue.contains(&UnitTypeId::SupplyDepot)
+            && !self.building.contains(&UnitTypeId::SupplyDepot)
         {
             self.build_queue.push_front(UnitTypeId::SupplyDepot);
             println!("[TACTICIAN]\tSupply Depot added to Build queue");

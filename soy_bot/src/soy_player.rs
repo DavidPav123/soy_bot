@@ -60,6 +60,16 @@ impl Player for SoyBot {
                         townhall if townhall == self.race_values.start_townhall => {
                             println!("[Event][Construction Complete]\t{townhall:?}")
                         }
+                        supply_depot if supply_depot == UnitTypeId::SupplyDepot => {
+                            println!("[Event][Construction Complete]\tSupply Depot");
+                            if let Some(idx) = self
+                                .building
+                                .iter()
+                                .position(|u| u == &UnitTypeId::SupplyDepot)
+                            {
+                                self.building.remove(idx);
+                            }
+                        }
                         unhandled => {
                             println!("[Event][Construction Complete]\tUnhandled {unhandled:?}")
                         }

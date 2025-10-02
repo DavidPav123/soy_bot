@@ -1,3 +1,7 @@
-[workspace]
-resolver = "3"
-members = ["soy_bot", "rust-sc2", "sc2-macro", "sc2-proto-rs", "macro"]
+[package]
+name = "soy_bot"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rust-sc2 = { path = "../sc2_rs", features = ["serde", "rayon"]}
